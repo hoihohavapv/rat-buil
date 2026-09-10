@@ -5,6 +5,7 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
+import java.util.ArrayList;
 import java.util.List;
 
 public class MyAccessibilityService extends AccessibilityService {
@@ -68,12 +69,27 @@ public class MyAccessibilityService extends AccessibilityService {
         performGlobalAction(GLOBAL_ACTION_BACK);
     }
     
+    // ==================== FIND BY CLASS NAME (CUSTOM) ====================
+    private List<AccessibilityNodeInfo> findByClassName(AccessibilityNodeInfo root, String className) {
+        List<AccessibilityNodeInfo> results = new ArrayList<>();
+        if (root == null) return results;
+        try {
+            if (root.getClassName() != null && root.getClassName().toString().equals(className)) {
+                results.add(root);
+            }
+            for (int i = 0; i < root.getChildCount(); i++) {
+                results.addAll(findByClassName(root.getChild(i), className));
+            }
+        } catch (Exception e) {}
+        return results;
+    }
+    
     // ==================== CLICK CHAT AT POSITION ====================
     public boolean clickChatAtPosition(int position) {
         try {
             AccessibilityNodeInfo root = getRootInActiveWindow();
             if (root == null) return false;
-            List<AccessibilityNodeInfo> lists = root.findAccessibilityNodeInfosByClassName("android.widget.ListView");
+            List<AccessibilityNodeInfo> lists = findByClassName(root, "android.widget.ListView");
             if (!lists.isEmpty()) {
                 AccessibilityNodeInfo list = lists.get(0);
                 if (list.getChildCount() > position) {
@@ -93,7 +109,7 @@ public class MyAccessibilityService extends AccessibilityService {
         try {
             AccessibilityNodeInfo root = getRootInActiveWindow();
             if (root == null) return false;
-            List<AccessibilityNodeInfo> lists = root.findAccessibilityNodeInfosByClassName("android.widget.ListView");
+            List<AccessibilityNodeInfo> lists = findByClassName(root, "android.widget.ListView");
             if (!lists.isEmpty()) {
                 AccessibilityNodeInfo list = lists.get(0);
                 if (list.getChildCount() > position) {
@@ -113,7 +129,7 @@ public class MyAccessibilityService extends AccessibilityService {
         try {
             AccessibilityNodeInfo root = getRootInActiveWindow();
             if (root == null) return;
-            List<AccessibilityNodeInfo> editTexts = root.findAccessibilityNodeInfosByClassName("android.widget.EditText");
+            List<AccessibilityNodeInfo> editTexts = findByClassName(root, "android.widget.EditText");
             if (!editTexts.isEmpty()) {
                 AccessibilityNodeInfo editText = editTexts.get(0);
                 Bundle args = new Bundle();
