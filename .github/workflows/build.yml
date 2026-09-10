@@ -109,10 +109,28 @@ jobs:
           dependencies { }
           GRADLEEOF
 
-      - name: Create Gradle Wrapper
-        run: |
-          gradle wrapper --gradle-version 8.2 --distribution-type bin
+          # Create wrapper files MANUALLY (no system gradle needed)
+          mkdir -p gradle/wrapper
+          
+          cat > gradle/wrapper/gradle-wrapper.properties << 'PROPEOF'
+          distributionBase=GRADLE_USER_HOME
+          distributionPath=wrapper/dists
+          distributionUrl=https\://services.gradle.org/distributions/gradle-8.2-bin.zip
+          networkTimeout=10000
+          validateDistributionUrl=true
+          zipStoreBase=GRADLE_USER_HOME
+          zipStorePath=wrapper/dists
+          PROPEOF
+
+          # Download gradle-wrapper.jar
+          wget -q https://raw.githubusercontent.com/gradle/gradle/v8.2.0/gradle/wrapper/gradle-wrapper.jar -O gradle/wrapper/gradle-wrapper.jar
+
+          # Download gradlew script
+          wget -q https://raw.githubusercontent.com/gradle/gradle/v8.2.0/gradlew -O gradlew
           chmod +x gradlew
+
+      - name: Verify Gradle Version
+        run: ./gradlew --version
 
       - name: Build APK
         run: ./gradlew assembleDebug --no-daemon --stacktrace
