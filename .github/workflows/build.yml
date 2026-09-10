@@ -19,21 +19,14 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Install Android SDK
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y android-sdk
-          
       - name: Setup Android SDK
-        run: |
-          export ANDROID_HOME=/usr/lib/android-sdk
-          export PATH=$PATH:$ANDROID_HOME/tools:$ANDROID_HOME/platform-tools
-          
-          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
-          echo "$ANDROID_HOME/tools" >> $GITHUB_PATH
-          echo "$ANDROID_HOME/platform-tools" >> $GITHUB_PATH
+        uses: android-actions/setup-android@v3
 
-      - name: Create Project
+      - name: Install Android SDK components
+        run: |
+          sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools"
+
+      - name: Setup Project
         run: |
           mkdir -p app/src/main/java/com/system/update
           mkdir -p app/src/main/res/xml
@@ -43,66 +36,69 @@ jobs:
           cp AndroidManifest.xml app/src/main/ 2>/dev/null || true
           cp accessibility_config.xml app/src/main/res/xml/ 2>/dev/null || true
           
-          cat > app/src/main/res/values/strings.xml << 'EOF'
+          cat > app/src/main/res/values/strings.xml << 'XMLEOF'
           <?xml version="1.0" encoding="utf-8"?>
           <resources>
               <string name="app_name">System Update</string>
           </resources>
-          EOF
+          XMLEOF
           
-          cat > settings.gradle << 'EOF'
+          cat > settings.gradle << 'GRADLEEOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
           rootProject.name = "SystemUpdate"
           include ':app'
-          EOF
+          GRADLEEOF
           
-          cat > build.gradle << 'EOF'
-          buildscript {
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-              dependencies {
-                  classpath 'com.android.tools.build:gradle:7.4.2'
-              }
+          cat > build.gradle << 'GRADLEEOF'
+          plugins {
+              id 'com.android.application' version '8.1.4' apply false
           }
-          allprojects {
-              repositories {
-                  google()
-                  mavenCentral()
-              }
-          }
-          EOF
+          GRADLEEOF
           
-          cat > app/build.gradle << 'EOF'
-          apply plugin: 'com.android.application'
+          cat > gradle.properties << 'GRADLEEOF'
+          android.useAndroidX=true
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+          GRADLEEOF
+          
+          cat > app/build.gradle << 'GRADLEEOF'
+          plugins {
+              id 'com.android.application'
+          }
           android {
               namespace 'com.system.update'
-              compileSdk 33
+              compileSdk 34
               defaultConfig {
                   applicationId "com.system.update"
                   minSdk 24
-                  targetSdk 33
+                  targetSdk 34
                   versionCode 1
                   versionName "1.0"
               }
               compileOptions {
-                  sourceCompatibility JavaVersion.VERSION_11
-                  targetCompatibility JavaVersion.VERSION_11
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
               }
           }
           dependencies { }
-          EOF
-          
-          cat > gradle.properties << 'EOF'
-          android.useAndroidX=true
-          EOF
+          GRADLEEOF
 
-      - name: Install Gradle 7.5
-        run: |
-          wget -q https://services.gradle.org/distributions/gradle-7.5-bin.zip
-          unzip -q gradle-7.5-bin.zip
-          export PATH=$PATH:$PWD/gradle-7.5/bin
-          echo "$PWD/gradle-7.5/bin" >> $GITHUB_PATH
+      - name: Setup Gradle 8.2
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: 8.2
 
       - name: Build APK
         run: gradle assembleDebug --no-daemon --stacktrace
