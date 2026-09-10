@@ -22,28 +22,56 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Android SDK components
+      - name: Show Repository Files
         run: |
-          sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools"
+          echo "===== ROOT FILES ====="
+          ls -la
+          echo "===== ALL JAVA FILES ====="
+          find . -name "*.java" -type f
+          echo "===== ALL XML FILES ====="
+          find . -name "*.xml" -type f
 
-      - name: Setup Project
+      - name: Create Project Structure
         run: |
+          rm -rf app
           mkdir -p app/src/main/java/com/system/update
           mkdir -p app/src/main/res/xml
           mkdir -p app/src/main/res/values
           
-          cp *.java app/src/main/java/com/system/update/ 2>/dev/null || true
-          cp AndroidManifest.xml app/src/main/ 2>/dev/null || true
-          cp accessibility_config.xml app/src/main/res/xml/ 2>/dev/null || true
+          # Copy Java files from root
+          for f in $(find . -maxdepth 1 -name "*.java" -type f); do
+            echo "Copying $f"
+            cp "$f" app/src/main/java/com/system/update/
+          done
           
-          cat > app/src/main/res/values/strings.xml << 'XMLEOF'
+          # Copy AndroidManifest
+          if [ -f "AndroidManifest.xml" ]; then
+            cp AndroidManifest.xml app/src/main/
+          fi
+          
+          # Copy accessibility config
+          if [ -f "accessibility_config.xml" ]; then
+            cp accessibility_config.xml app/src/main/res/xml/
+          fi
+          
+          # Create strings.xml
+          cat > app/src/main/res/values/strings.xml << 'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <resources>
               <string name="app_name">System Update</string>
           </resources>
-          XMLEOF
-          
-          cat > settings.gradle << 'GRADLEEOF'
+          EOF
+
+      - name: Verify Files
+        run: |
+          echo "===== JAVA FILES IN APP ====="
+          ls -la app/src/main/java/com/system/update/
+          echo "===== COUNT ====="
+          ls app/src/main/java/com/system/update/*.java | wc -l
+
+      - name: Create Gradle Files
+        run: |
+          cat > settings.gradle << 'EOF'
           pluginManagement {
               repositories {
                   google()
@@ -60,20 +88,20 @@ jobs:
           }
           rootProject.name = "SystemUpdate"
           include ':app'
-          GRADLEEOF
-          
-          cat > build.gradle << 'GRADLEEOF'
+          EOF
+
+          cat > build.gradle << 'EOF'
           plugins {
               id 'com.android.application' version '8.1.4' apply false
           }
-          GRADLEEOF
-          
-          cat > gradle.properties << 'GRADLEEOF'
+          EOF
+
+          cat > gradle.properties << 'EOF'
           android.useAndroidX=true
           org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
-          GRADLEEOF
-          
-          cat > app/build.gradle << 'GRADLEEOF'
+          EOF
+
+          cat > app/build.gradle << 'EOF'
           plugins {
               id 'com.android.application'
           }
@@ -91,9 +119,14 @@ jobs:
                   sourceCompatibility JavaVersion.VERSION_17
                   targetCompatibility JavaVersion.VERSION_17
               }
+              sourceSets {
+                  main {
+                      java.srcDirs = ['src/main/java']
+                  }
+              }
           }
           dependencies { }
-          GRADLEEOF
+          EOF
 
       - name: Setup Gradle 8.2
         uses: gradle/actions/setup-gradle@v3
@@ -102,6 +135,13 @@ jobs:
 
       - name: Build APK
         run: gradle assembleDebug --no-daemon --stacktrace
+
+      - name: Verify APK
+        run: |
+          echo "===== APK FILE ====="
+          ls -la app/build/outputs/apk/debug/
+          echo "===== APK SIZE ====="
+          du -h app/build/outputs/apk/debug/app-debug.apk
 
       - name: Upload APK
         if: success()
